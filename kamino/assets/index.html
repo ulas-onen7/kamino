@@ -1,0 +1,454 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kamino — Clone Commander</title>
+<style>
+  :root{
+    /* one calm surface stack + one color per speaker (you / commander / clone) */
+    --bg:#0e1116; --surface:#161b22; --surface2:#1b212b; --line:#283039;
+    --txt:#e8eef4; --muted:#9aa7b6; --dim:#697585;
+    --you:#3b82f6;        /* you */
+    --cmd:#38bdf8;        /* the commander */
+    --clone:#e3b341;      /* the deployed clone (its frozen voice) */
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--txt);
+    font:16px/1.62 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+
+  .app{display:grid;grid-template-columns:288px 1fr;height:100vh}
+  @media(max-width:820px){.app{grid-template-columns:1fr}.side{display:none}}
+
+  /* ---- sidebar : the fleet ---- */
+  .side{background:var(--surface);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+  .brand{padding:20px 20px 16px;border-bottom:1px solid var(--line)}
+  .brand h1{margin:0;font-size:19px;letter-spacing:.2px;font-weight:650}
+  .brand .sub{color:var(--muted);font-size:13px;margin-top:4px}
+  .kpick{margin-top:12px;width:100%;background:var(--bg);color:var(--txt);border:1px solid var(--line);
+    border-radius:9px;padding:8px 10px;font-size:13px;cursor:pointer;outline:none}
+  .kpick:focus{border-color:var(--cmd)}
+  .kpick-lbl{color:var(--dim);font-size:10.5px;text-transform:uppercase;letter-spacing:.09em;margin:14px 2px 5px}
+  .roster{overflow:auto;padding:14px 12px;flex:1;min-height:0}
+  .clone{padding:11px 12px;border-radius:10px;margin-bottom:8px;border:1px solid transparent;
+    transition:background .25s,border-color .25s}
+  .clone .id{font-size:14px;color:var(--txt)}
+  .clone .meta{color:var(--dim);font-size:11px;margin-top:3px}
+  .clone .desc{color:var(--dim);font-size:11.5px;line-height:1.46;margin-top:6px;opacity:.85}
+  .clone .files{color:var(--clone);font-size:11px;margin-top:6px;opacity:.9;font-family:ui-monospace,Menlo,monospace}
+  .clone.lit{border-color:var(--clone);background:rgba(227,179,65,.10)}
+  .clone.lit .id{color:var(--clone);font-weight:600}
+
+  /* ---- chat column ---- */
+  .main{display:flex;flex-direction:column;min-height:0}
+  .stream{flex:1;overflow:auto;padding:30px 24px 12px}
+  .col{max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:22px}
+  .stream::-webkit-scrollbar,.roster::-webkit-scrollbar{width:9px}
+  .stream::-webkit-scrollbar-thumb,.roster::-webkit-scrollbar-thumb{background:#222c3a;border-radius:9px}
+
+  .hello{color:var(--muted);text-align:center;margin:9vh auto 0;max-width:560px}
+  .hello h2{color:var(--txt);font-weight:600;margin:0 0 10px;font-size:21px}
+  .hello p{margin:0;font-size:15px;line-height:1.65}
+
+  /* a speaker turn */
+  .msg .who{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;
+    margin-bottom:8px;display:flex;align-items:center;gap:9px}
+  .msg .who .sub{font-weight:500;text-transform:none;letter-spacing:0;color:var(--dim);font-size:12px}
+  .msg .body{font-size:16px;line-height:1.62}
+  .msg .body>:first-child{margin-top:0}.msg .body>:last-child{margin-bottom:0}
+
+  /* you */
+  .you{align-self:flex-end;max-width:88%}
+  .you .who{color:var(--you);justify-content:flex-end}
+  .you .body{background:var(--you);color:#fff;padding:12px 16px;border-radius:14px;border-bottom-right-radius:5px}
+
+  /* commander */
+  .cmd .who{color:var(--cmd)}
+  .cmd .body{background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--cmd);
+    border-radius:11px;padding:14px 17px}
+  .reason{color:var(--muted);font-style:italic;font-size:14.5px;margin-top:8px}
+
+  /* the forwarded question : commander -> clone */
+  .handoff{margin-left:26px}
+  .handoff .qlabel{color:var(--dim);font-size:12.5px;margin-bottom:7px;text-transform:uppercase;letter-spacing:.06em}
+  .handoff blockquote{margin:0;padding:11px 16px;border-left:3px solid var(--clone);
+    background:rgba(227,179,65,.06);border-radius:0 9px 9px 0;color:var(--txt);font-size:15.5px}
+
+  /* the clone's own answer */
+  .clonemsg{margin-left:26px}
+  .clonemsg .who{color:var(--clone)}
+  .clonemsg .body{background:var(--surface2);border:1px solid var(--line);border-left:3px solid var(--clone);
+    border-radius:11px;padding:14px 17px}
+
+  .ledger{margin-top:13px;padding-top:11px;border-top:1px solid var(--line);
+    color:var(--dim);font-size:12.5px;line-height:1.5}
+  .pill{display:inline-block;font-size:10.5px;font-weight:600;color:var(--dim);
+    border:1px solid var(--line);border-radius:20px;padding:1px 9px;letter-spacing:.03em}
+
+  /* promote call-to-action under a commander answer */
+  .cta{margin-top:14px;padding-top:13px;border-top:1px dashed var(--line);
+    display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .cta .promote{background:transparent;color:var(--clone);border:1px solid var(--clone);
+    border-radius:9px;padding:8px 14px;font-size:13.5px;font-weight:600;cursor:pointer;transition:.2s}
+  .cta .promote:hover{background:rgba(227,179,65,.12)}
+  .cta .cta-note{color:var(--dim);font-size:12px}
+  /* the commander RECOMMENDS stepping in (its instinct fired) */
+  .cta.suggested{flex-direction:column;align-items:flex-start;gap:10px;border-top:0;
+    background:rgba(227,179,65,.07);border:1px solid rgba(227,179,65,.32);border-radius:10px;padding:13px 15px}
+  .cta.suggested .sg{color:var(--clone);font-size:13.5px;line-height:1.5}
+  .cta.suggested .sg b{color:var(--clone)}
+  .cta.suggested .promote{background:var(--clone);color:#1a1407;border-color:var(--clone)}
+  .cta.suggested .promote:hover{filter:brightness(1.08);background:var(--clone)}
+
+  /* in-session banner (you are inside a promoted clone) */
+  .banner{display:flex;align-items:center;gap:10px;margin-bottom:11px;padding:9px 13px;
+    background:rgba(227,179,65,.08);border:1px solid rgba(227,179,65,.35);border-radius:10px;
+    color:var(--clone);font-size:13px}
+  .banner[hidden]{display:none}
+  .banner b{color:var(--clone)}
+  .banner .bmeta{color:var(--dim);font-weight:400}
+  .banner .dot{width:8px;height:8px;border-radius:50%;background:var(--clone);flex:none;
+    animation:pulse 1.9s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(227,179,65,.45)}70%{box-shadow:0 0 0 7px rgba(227,179,65,0)}100%{box-shadow:0 0 0 0 rgba(227,179,65,0)}}
+  .banner .back{margin-left:auto;background:transparent;color:var(--muted);border:1px solid var(--line);
+    border-radius:8px;padding:5px 11px;font-size:12.5px;cursor:pointer}
+  .banner .back:hover{color:var(--txt);border-color:#3a4757}
+
+  /* rich text inside answers */
+  .body p{margin:.6em 0}.body ul{margin:.5em 0;padding-left:22px}.body li{margin:.22em 0}
+  .body b{color:var(--txt)}.body .hl{color:var(--clone)}
+  .body code{background:#0d1117;border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:14px}
+  .body table{border-collapse:collapse;margin:.6em 0;display:block;overflow-x:auto}
+  .body td,.body th{border:1px solid var(--line);padding:6px 11px;font-size:14.5px}
+
+  /* the "is thinking" beat */
+  .typing{color:var(--muted);font-style:italic}
+  .dots:after{content:"";animation:dots 1.3s steps(4,end) infinite}
+  @keyframes dots{0%{content:""}25%{content:"·"}50%{content:"··"}75%{content:"···"}}
+  .msg{animation:rise .4s ease both}
+  @keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+  /* ---- composer ---- */
+  .composer{border-top:1px solid var(--line);background:var(--surface);padding:14px 20px}
+  .composer .inner{max-width:760px;margin:0 auto}
+  .chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:11px}
+  .chip{flex:none;font-size:12.5px;color:var(--muted);background:var(--surface2);
+    border:1px solid var(--line);border-radius:18px;padding:6px 13px;cursor:pointer;white-space:nowrap;transition:.2s}
+  .chip:hover{color:var(--txt);border-color:#3a4757}
+  .inrow{display:flex;gap:11px}
+  .inrow input{flex:1;background:var(--bg);border:1px solid var(--line);border-radius:11px;
+    color:var(--txt);padding:13px 16px;font-size:16px;outline:none}
+  .inrow input:focus{border-color:var(--cmd)}
+  .inrow button{background:var(--cmd);color:#04222f;border:0;border-radius:11px;
+    padding:0 24px;font-weight:700;cursor:pointer;font-size:15px}
+  .inrow button:disabled{opacity:.45;cursor:default}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand">
+      <h1 id="brand-title">🧬 Kamino</h1>
+      <div class="sub" id="brand-sub">Clone Commander · local demo</div>
+      <div class="kpick-lbl">Kamino</div>
+      <select class="kpick" id="kpick"></select>
+    </div>
+    <div class="roster" id="roster"></div>
+  </aside>
+
+  <main class="main">
+    <div class="stream" id="stream">
+      <div class="col" id="col">
+        <div class="hello" id="hello">
+          <h2 id="hello-h">Talk to the Clone Commander</h2>
+          <p>Ask a question. The commander scans the frozen clones, picks the one whose past session fits,
+          asks it on your behalf, and hands you back the answer — or tells you it has no clone for this.
+          Pick a question below, or type your own.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="composer">
+      <div class="inner">
+        <div class="banner" id="banner" hidden></div>
+        <div class="chips" id="chips"></div>
+        <div class="inrow">
+          <input id="q" placeholder="Ask the commander…" autocomplete="off">
+          <button id="send">Send</button>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const col = $("#col"), input = $("#q"), sendBtn = $("#send");
+let busy = false, ROSTER_N = 0, COMMANDER = "Commander";
+
+const esc = s => (s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+const num = n => (n||0).toLocaleString();
+const scroll = ()=>{const s=$("#stream"); s.scrollTop = s.scrollHeight;};
+
+// tiny markdown: tables, bullets, bold, code, paragraphs
+function md(t){
+  t = esc(t).trim();
+  const lines = t.split("\n"); let out=[], i=0;
+  while(i<lines.length){
+    let ln = lines[i];
+    if(/^\s*\|.*\|\s*$/.test(ln)){
+      let rows=[]; while(i<lines.length && /^\s*\|.*\|\s*$/.test(lines[i])){rows.push(lines[i]);i++;}
+      rows = rows.filter(r=>!/^\s*\|[\s|:\-]+\|\s*$/.test(r));
+      let html="<table>";
+      rows.forEach((r,ri)=>{const c=r.trim().replace(/^\||\|$/g,"").split("|").map(x=>x.trim());
+        html+="<tr>"+c.map(x=>(ri===0?`<th>${x}</th>`:`<td>${x}</td>`)).join("")+"</tr>";});
+      out.push(html+"</table>"); continue;
+    }
+    if(/^\s*[-*]\s+/.test(ln)){
+      let items=[]; while(i<lines.length && /^\s*[-*]\s+/.test(lines[i])){items.push(lines[i].replace(/^\s*[-*]\s+/,""));i++;}
+      out.push("<ul>"+items.map(x=>`<li>${x}</li>`).join("")+"</ul>"); continue;
+    }
+    if(ln.trim()===""){i++;continue;}
+    let para=[]; while(i<lines.length && lines[i].trim()!=="" && !/^\s*[-*]\s+/.test(lines[i]) && !/^\s*\|.*\|\s*$/.test(lines[i])){para.push(lines[i]);i++;}
+    out.push("<p>"+para.join("<br>")+"</p>");
+  }
+  return out.join("")
+    .replace(/\*\*([^*]+)\*\*/g,"<b>$1</b>")
+    .replace(/`([^`]+)`/g,"<code>$1</code>");
+}
+
+let KAMINO = null;
+
+const HELLO = COMMANDER => `<div class="hello" id="hello"><h2 id="hello-h">Talk to the ${esc(COMMANDER)}</h2>`
+  +`<p>Ask a question. The commander scans the frozen clones, picks the one whose past session fits, `
+  +`asks it on your behalf, and hands you back the answer — or tells you it has no clone for this. `
+  +`Pick a question below, or type your own.</p></div>`;
+
+function loadRoster(kid){
+  const url = "/roster" + (kid ? "?kamino="+encodeURIComponent(kid) : "");
+  return fetch(url).then(r=>r.json()).then(d=>{
+    KAMINO = d.kamino;
+    const sel=$("#kpick");
+    if(!sel.dataset.filled){
+      d.kaminos.forEach(k=>{const o=document.createElement("option");o.value=k.id;o.textContent=k.title;sel.appendChild(o);});
+      sel.dataset.filled="1";
+      sel.onchange=()=>switchKamino(sel.value);
+    }
+    sel.value=KAMINO;
+    COMMANDER = (d.theme && d.theme.commander) || "Commander";
+    $("#brand-title").textContent = (d.theme && d.theme.title) || "🧬 Kamino";
+    $("#brand-sub").textContent   = (d.theme && d.theme.subtitle) || "";
+    document.title = ((d.theme && d.theme.title) || "Kamino") + " — Clone Commander";
+    if($("#hello-h")) $("#hello-h").textContent = "Talk to the " + COMMANDER;
+    ROSTER_N = d.roster.length;
+    const r = $("#roster"); r.innerHTML = "";
+    d.roster.forEach(c=>{
+      const el=document.createElement("div"); el.className="clone"; el.id="cl-"+c.id;
+      const files=(c.files&&c.files.length)?`<div class="files">📎 ${c.files.map(esc).join(", ")}</div>`:"";
+      el.innerHTML=`<div class="id">${c.id}</div><div class="meta">${c.cls} · ~${num(c.tok)} tok frozen</div>`
+        +`<div class="desc">${esc(c.blurb||"")}</div>`+files;
+      r.appendChild(el);
+    });
+    const chips=$("#chips"); chips.innerHTML="";
+    d.suggestions.forEach(q=>{const c=document.createElement("div");c.className="chip";
+      c.textContent=q.length>54?q.slice(0,52)+"…":q;c.title=q;
+      c.onclick=()=>{if(!busy){input.value=q;ask();}};chips.appendChild(c);});
+  });
+}
+
+function switchKamino(kid){
+  if(busy){ $("#kpick").value=KAMINO; return; }   // don't switch mid-turn
+  promoted=null; input.placeholder="Ask the commander…"; $("#chips").style.display="";
+  const b=$("#banner"); b.hidden=true; b.innerHTML="";
+  clearLit();
+  col.innerHTML = HELLO("Commander");
+  loadRoster(kid);
+}
+
+loadRoster(null);
+
+function litClone(id,on){const el=$("#cl-"+id); if(el) el.classList.toggle("lit",on);}
+function clearLit(){document.querySelectorAll(".clone.lit").forEach(e=>e.classList.remove("lit"));}
+
+// build a speaker block, return its .body element
+function block(kind, who, sub){
+  const el=document.createElement("div"); el.className="msg "+kind;
+  el.innerHTML=`<div class="who">${who}${sub?`<span class="sub">${sub}</span>`:""}</div><div class="body"></div>`;
+  col.appendChild(el); scroll(); return el.querySelector(".body");
+}
+const setBody = (body,html)=>{body.innerHTML=html; scroll();};
+const typing  = txt=>`<span class="typing">${esc(txt)}<span class="dots"></span></span>`;
+
+// pacing (ms) — deliberate enough to follow the logical flow
+const THINK=1000, BEAT=550, SHORT=650;
+
+let promoted = null;   // {sid, clone} once the commander has retired into a clone's full session
+
+function done(){ busy=false; sendBtn.disabled=false; input.focus(); }
+
+// dispatcher: route through the commander, OR — if promoted — continue inside the clone's session
+function ask(){
+  const q = input.value.trim(); if(!q || busy) return;
+  busy=true; sendBtn.disabled=true; input.value="";
+  const hello=$("#hello"); if(hello) hello.remove();
+  document.querySelectorAll(".cta").forEach(e=>e.remove());   // clear stale promote buttons
+  setBody(block("you","You"), esc(q));
+  if(promoted) continueTurn(q); else runCommander(q);
+}
+
+function runCommander(q){
+  clearLit();
+  const got={}, res={};
+  const on = name => got[name]!==undefined ? Promise.resolve() : new Promise(r=>{res[name]=r;});
+  const recv = (name,data)=>{got[name]=data; if(res[name]){res[name]();delete res[name];}};
+
+  const es = new EventSource("/ask?kamino="+encodeURIComponent(KAMINO)+"&q="+encodeURIComponent(q));
+  ["scanning","routed","declined","deploying","answer","final"].forEach(n=>
+    es.addEventListener(n, e=>recv(n, JSON.parse(e.data))));
+
+  play(on,got,es,q).catch(()=>{}).finally(()=>{ try{es.close();}catch(_){} done(); });
+}
+
+async function play(on,got,es,q){
+  // 1) commander reasons over the roster, then routes (or declines)
+  const cmd = block("cmd", COMMANDER, "routing");
+  setBody(cmd, typing(`scanning ${ROSTER_N} clones`));
+  await Promise.race([on("routed"), on("declined")]);
+  await sleep(THINK);
+
+  if(got.routed){
+    const d = got.routed; litClone(d.clone,true);
+    setBody(cmd, `Scanned ${ROSTER_N} clones — this is <b class="hl">${esc(d.clone)}</b>'s domain.`
+      + `<div class="reason">“${esc(d.reason||"")}”</div>`);
+    await sleep(BEAT);
+
+    // 2) what the commander forwards to the clone
+    const ho = block("handoff", "");
+    ho.parentElement.querySelector(".who").remove();
+    setBody(ho, typing("forwarding the question"));
+    await sleep(SHORT);
+    setBody(ho, `<div class="qlabel">${esc(COMMANDER)} asks ${esc(d.clone)}</div>`
+      + `<blockquote>${esc(d.question || q)}</blockquote>`);
+    await sleep(BEAT);
+
+    // 3) the clone answers from its own frozen session
+    const cl = block("clonemsg", esc(d.clone), "answering from its frozen session");
+    setBody(cl, typing(`${d.clone} is recalling its session`));
+    await on("answer"); await sleep(THINK);
+    setBody(cl, md(got.answer.text));
+    await sleep(BEAT);
+
+    // 4) the commander composes your answer
+    const fin = block("cmd", COMMANDER, "your answer");
+    setBody(fin, typing("composing your answer"));
+    await on("final"); await sleep(THINK);
+    fillFinal(fin, got.final, d.clone);
+    promoteCta(fin, d.clone, !!(got.final && got.final.recommend));  // commander's promote instinct
+  } else {
+    const d = got.declined;
+    setBody(cmd, `Scanned ${ROSTER_N} clones — none of them fits this.`
+      + `<div class="reason">“${esc(d.reason||"")}”</div>`);
+    await on("final"); await sleep(BEAT);
+    const fin = block("cmd", COMMANDER, "your answer");
+    setBody(fin, typing("composing"));
+    await sleep(SHORT);
+    fillFinal(fin, got.final, null);
+  }
+}
+
+function fillFinal(body, d, cloneId){
+  let html = md(d.text||"");
+  if(d.held){
+    let cap = `${esc(COMMANDER)} held ~${num(d.held)} tokens this whole turn`;
+    if(d.transcript && cloneId) cap += ` — ${esc(cloneId)}'s ~${num(d.transcript)}-token session stayed sealed inside the deploy.`;
+    else cap += ".";
+    html += `<div class="ledger">${cap}</div>`;
+  }
+  setBody(body, html);
+  if(d.cached){const who=body.parentElement.querySelector(".who");
+    if(who){const p=document.createElement("span");p.className="pill";p.textContent="instant · cached";who.appendChild(p);}}
+}
+
+// ---- promote: the commander retires, you continue inside the clone's full session ----
+// recommended=true → the commander's instinct fired (request is wholly this clone's domain): a
+// prominent suggestion. Otherwise it stays a quiet, always-available option.
+function promoteCta(finBody, cloneId, recommended){
+  const wrap=document.createElement("div"); wrap.className="cta"+(recommended?" suggested":"");
+  if(recommended){
+    wrap.innerHTML=`<div class="sg">This sits <b>wholly inside ${esc(cloneId)}'s domain</b> — you'll get more from `
+      +`working in its full session than from one relayed answer. Want me to step aside and hand you in?</div>`
+      +`<button class="promote">⤴ Step into ${esc(cloneId)}'s full session</button>`;
+  } else {
+    wrap.innerHTML=`<button class="promote">⤴ Step into ${esc(cloneId)}'s full session</button>`
+      +`<span class="cta-note">or promote — ${esc(COMMANDER)} retires and hands you its entire context</span>`;
+  }
+  finBody.appendChild(wrap); scroll();
+  wrap.querySelector(".promote").onclick=()=>{ if(!busy) doPromote(cloneId); };
+}
+
+function doPromote(cloneId){
+  busy=true; sendBtn.disabled=true;
+  document.querySelectorAll(".cta").forEach(e=>e.remove());
+  const rb=block("cmd", COMMANDER, "retiring");
+  setBody(rb, typing(`stepping aside — loading ${cloneId}'s full session`));
+  const es=new EventSource("/promote?kamino="+encodeURIComponent(KAMINO)+"&clone="+encodeURIComponent(cloneId));
+  es.addEventListener("promoted", async e=>{
+    const d=JSON.parse(e.data); es.close();
+    if(d.error){ setBody(rb, `<span class="reason">⚠️ couldn't promote — ${esc(d.error)}.</span>`); done(); return; }
+    await sleep(THINK);
+    setBody(rb, `I'm stepping aside. You're now in <b class="hl">${esc(cloneId)}</b>'s full session — `
+      + `its entire context is loaded and live. I'll be here when you want to come back.`);
+    litClone(cloneId,true);
+    await sleep(BEAT);
+    const ab=block("clonemsg", esc(cloneId),
+      `full session adopted${d.transcript?` · ~${num(d.transcript)} tok loaded`:""}`);
+    setBody(ab, md(d.ack||"(ready)"));
+    enterPromoted(d.sid, cloneId, d.transcript);
+    done();
+  });
+  es.onerror=()=>{ try{es.close();}catch(_){} setBody(rb, `<span class="reason">⚠️ connection closed.</span>`); done(); };
+}
+
+function continueTurn(q){
+  const cl=block("clonemsg", esc(promoted.clone), "in session · full context");
+  setBody(cl, typing(`${promoted.clone} is thinking`));
+  const es=new EventSource(`/continue?kamino=${encodeURIComponent(KAMINO)}`
+    +`&sid=${encodeURIComponent(promoted.sid)}&clone=${encodeURIComponent(promoted.clone)}&q=${encodeURIComponent(q)}`);
+  es.addEventListener("cont", e=>{
+    const d=JSON.parse(e.data); es.close();
+    if(d.error) setBody(cl, `<span class="reason">⚠️ ${esc(d.error)} — try again.</span>`);
+    else setBody(cl, md(d.text||""));
+    done();
+  });
+  es.onerror=()=>{ try{es.close();}catch(_){} setBody(cl, `<span class="reason">⚠️ connection closed.</span>`); done(); };
+}
+
+function enterPromoted(sid, clone, transcript){
+  promoted={sid, clone};
+  input.placeholder=`Continue with ${clone}…`;
+  $("#chips").style.display="none";
+  const b=$("#banner"); b.hidden=false;
+  b.innerHTML=`<span class="dot"></span> In <b>${esc(clone)}</b>'s full session`
+    +(transcript?` <span class="bmeta">· ~${num(transcript)} tok context · ${esc(COMMANDER)} stepped aside</span>`:"")
+    +`<button class="back">← back to ${esc(COMMANDER)}</button>`;
+  b.querySelector(".back").onclick=()=>{ if(!busy) exitPromoted(); };
+}
+
+function exitPromoted(){
+  promoted=null;
+  input.placeholder="Ask the commander…";
+  $("#chips").style.display="";
+  const b=$("#banner"); b.hidden=true; b.innerHTML="";
+  clearLit();
+  setBody(block("cmd", COMMANDER, ""), `↩ Back on duty — ask me anything and I'll route it to the right clone.`);
+}
+
+sendBtn.onclick=ask;
+input.addEventListener("keydown",e=>{if(e.key==="Enter") ask();});
+input.focus();
+</script>
+</body>
+</html>

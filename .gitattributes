@@ -1,0 +1,11 @@
+# Content-addressed by sha256(bytes) in the filename (kamino/registry.py: recruit_body,
+# _store_blob_file). Git must never rewrite these bytes -- line-ending normalization included
+# -- on checkout or commit, on any platform, or the hash in the filename stops matching the
+# file's actual content. Windows git installs commonly default core.autocrlf=true.
+#
+# Matched by suffix (**/registry/...), not by a data*/ prefix: the public tree ships no
+# data*/ demo root at all, but a user's OWN registry can live anywhere they choose to version
+# it -- inside a clone of this repo included (`~/.kamino/<name>/registry/` is the default, but
+# KAMINO_HOME/KAMINO_REGISTRY can point it wherever) -- and needs the identical protection.
+**/registry/blobs/* -text
+**/registry/files/* -text

@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+# The PyPI name `kamino` belongs to an unrelated project (see docs/rename-decision.md);
+# the distribution is `kamino-clones`, the import package and console command stay `kamino`.
+name = "kamino-clones"
+version = "0.5.0"
+description = "Freeze your best AI sessions into consultable clones: a local, git-backed registry with a commander."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Ulas Onen" }]
+# Engine is stdlib-only; it shells out to the external `claude` CLI (not a pip dependency).
+dependencies = []
+
+[project.urls]
+Repository = "https://github.com/ulas-onen7/kamino"
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[project.scripts]
+kamino = "kamino.cli:main"  # the kamino CLI (recruit/deploy/promote/retire)
+# kamino-web / kamino-chat / kamino-build are demo tools wired to a gitignored local data
+# root (kamino/paths.py:11) -- they do not ship publicly, so only the `kamino` entry point
+# is registered.
+
+[tool.setuptools]
+packages = ["kamino"]
+
+[tool.setuptools.package-data]
+kamino = ["assets/*.html", "skill/kamino/SKILL.md", "starter/*.txt", "starter/*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

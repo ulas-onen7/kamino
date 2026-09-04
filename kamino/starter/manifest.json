@@ -1,0 +1,6 @@
+{
+ "id": "using-kamino",
+ "class": "knowledge",
+ "blurb": "Specialist on operating Kamino itself: installing it for Claude Code, Codex or Cursor, every CLI verb and flag, the four agent workflows (consult, recruit, promote, list), the self-growth pipeline, registries, the staleness signals, and what to do when something breaks. Deploy it when the user asks how to use Kamino, what a verb does, why a consult failed, or how any part of the tool works. Does not cover: the user's own projects or any knowledge they have frozen themselves -- only Kamino's own operation.",
+ "generated_for": "0.5.0"
+}
