@@ -15,7 +15,9 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with: { python-version: "3.12" }
-      - run: pip install build pytest
+      # -e . matters: the suite asserts against the installed distribution's metadata
+      # (same environment test.yml builds), not just the checkout on sys.path
+      - run: pip install -e ".[dev]" build
       - run: python -m pytest -q
       - run: python -m build          # sdist + wheel
       - name: smoke-test the installed wheel, not the source tree
